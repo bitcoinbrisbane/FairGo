@@ -1,0 +1,1446 @@
+<!DOCTYPE html>
+<html lang="en-AU">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FAIRGO — Parking insurance, on-chain.</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Fraunces:ital,opsz,wght@0,9..144,300..900;1,9..144,300..900&family=Geist+Mono:wght@300..700&family=Geist:wght@300..700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #F1E9D5;
+    --paper-2: #EBE2C9;
+    --ink: #0B0B0B;
+    --ink-soft: #2A2A2A;
+    --paint: #F2C200;          /* parking-line yellow */
+    --paint-deep: #C99E00;
+    --ticket: #C4341F;          /* fine red */
+    --paid: #2E6B33;            /* approved green */
+    --harbour: #163A5F;         /* deep aussie blue */
+    --rule: rgba(11,11,11,0.12);
+    --rule-strong: rgba(11,11,11,0.5);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body { background: var(--paper); color: var(--ink); }
+  body {
+    font-family: 'Geist', sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+    background-image:
+      radial-gradient(circle at 1px 1px, rgba(11,11,11,0.07) 1px, transparent 0);
+    background-size: 22px 22px;
+  }
+
+  /* paper grain overlay */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' /%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.35'/%3E%3C/svg%3E");
+    opacity: 0.18;
+    mix-blend-mode: multiply;
+    pointer-events: none;
+    z-index: 1000;
+  }
+
+  ::selection { background: var(--paint); color: var(--ink); }
+
+  /* utility */
+  .mono { font-family: 'Geist Mono', monospace; font-feature-settings: "tnum" 1; }
+  .serif { font-family: 'Fraunces', serif; }
+  .display { font-family: 'Anton', sans-serif; letter-spacing: 0.005em; }
+  .tnum { font-variant-numeric: tabular-nums; }
+  .upper { text-transform: uppercase; letter-spacing: 0.08em; }
+
+  .hatch {
+    background-image: repeating-linear-gradient(
+      135deg,
+      var(--ink) 0 6px,
+      var(--paint) 6px 12px
+    );
+  }
+
+  /* ---------- TOP BAR ---------- */
+  header.bar {
+    position: sticky; top: 0; z-index: 50;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 28px;
+    background: var(--ink);
+    color: var(--paper);
+    border-bottom: 3px solid var(--paint);
+  }
+  .brand {
+    display: flex; align-items: center; gap: 10px;
+    font-family: 'Anton', sans-serif;
+    font-size: 26px; letter-spacing: 0.04em;
+    color: var(--paint);
+  }
+  .brand .p-mark {
+    width: 28px; height: 28px;
+    background: var(--paint);
+    color: var(--ink);
+    display: grid; place-items: center;
+    font-family: 'Anton', sans-serif;
+    font-size: 22px;
+    border-radius: 4px;
+  }
+  .brand small {
+    font-family: 'Geist Mono', monospace;
+    font-size: 10px; letter-spacing: 0.18em;
+    color: var(--paper); opacity: 0.6;
+    margin-left: 4px;
+  }
+
+  nav.primary {
+    display: flex; gap: 28px;
+    font-size: 13px; letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  nav.primary a {
+    color: var(--paper); text-decoration: none;
+    opacity: 0.75; transition: opacity 0.2s;
+  }
+  nav.primary a:hover { opacity: 1; }
+
+  .wallet-btn {
+    background: var(--paint); color: var(--ink);
+    border: none; padding: 9px 16px;
+    font-family: 'Geist Mono', monospace;
+    font-size: 12px; font-weight: 600;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: transform 0.15s ease, background 0.15s;
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .wallet-btn:hover { background: #FFD11A; transform: translateY(-1px); }
+  .wallet-btn::before {
+    content: ''; width: 8px; height: 8px;
+    background: var(--ticket); border-radius: 50%;
+    display: inline-block;
+  }
+  .wallet-btn.connected::before { background: var(--paid); }
+
+  /* ---------- HERO ---------- */
+  .hero {
+    position: relative;
+    padding: 80px 28px 56px;
+    border-bottom: 2px solid var(--ink);
+    overflow: hidden;
+  }
+  .hero-grid {
+    display: grid;
+    grid-template-columns: minmax(0,1.7fr) minmax(0,1fr);
+    gap: 48px;
+    max-width: 1320px; margin: 0 auto;
+    align-items: end;
+  }
+
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 10px;
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px; letter-spacing: 0.18em;
+    text-transform: uppercase;
+    margin-bottom: 28px;
+    padding: 6px 10px;
+    border: 1px solid var(--ink);
+    border-radius: 2px;
+    background: var(--paper-2);
+  }
+  .eyebrow .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--paid);
+    box-shadow: 0 0 0 4px rgba(46,107,51,0.18);
+    animation: pulse 1.8s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  h1.hero-title {
+    font-family: 'Anton', sans-serif;
+    font-size: clamp(72px, 11vw, 168px);
+    line-height: 0.85;
+    letter-spacing: -0.01em;
+    margin-bottom: 18px;
+  }
+  h1.hero-title .ital {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-weight: 400;
+    font-size: 0.55em;
+    letter-spacing: -0.02em;
+    display: block;
+    margin-top: 8px;
+    color: var(--ink-soft);
+  }
+  h1.hero-title em {
+    background: var(--paint);
+    font-style: normal;
+    padding: 0 0.1em;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+  }
+
+  .hero-sub {
+    font-family: 'Fraunces', serif;
+    font-size: clamp(18px, 2vw, 22px);
+    font-weight: 400;
+    line-height: 1.4;
+    max-width: 540px;
+    color: var(--ink-soft);
+    margin-bottom: 36px;
+  }
+  .hero-sub b {
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  .cta-row {
+    display: flex; gap: 14px; flex-wrap: wrap;
+  }
+  .btn {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 14px 22px;
+    font-family: 'Geist Mono', monospace;
+    font-size: 13px; letter-spacing: 0.08em;
+    text-transform: uppercase; font-weight: 600;
+    border: 2px solid var(--ink);
+    cursor: pointer;
+    text-decoration: none;
+    border-radius: 2px;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .btn-primary {
+    background: var(--ink); color: var(--paint);
+  }
+  .btn-primary:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 4px 4px 0 var(--paint);
+  }
+  .btn-ghost {
+    background: transparent; color: var(--ink);
+  }
+  .btn-ghost:hover {
+    background: var(--ink); color: var(--paper);
+  }
+
+  /* hero side: parking sign card */
+  .sign {
+    position: relative;
+    aspect-ratio: 1 / 1.15;
+    border: 4px solid var(--ink);
+    background: var(--paint);
+    padding: 20px;
+    box-shadow: 8px 8px 0 var(--ink);
+    display: flex; flex-direction: column; justify-content: space-between;
+    border-radius: 6px;
+  }
+  .sign::before {
+    content: 'COVERED ZONE';
+    position: absolute; top: -14px; left: 16px;
+    background: var(--ink); color: var(--paint);
+    font-family: 'Geist Mono', monospace;
+    font-size: 10px; letter-spacing: 0.16em;
+    padding: 4px 10px;
+  }
+  .sign-p {
+    font-family: 'Anton', sans-serif;
+    font-size: clamp(120px, 18vw, 220px);
+    line-height: 0.8;
+    color: var(--ink);
+    align-self: center;
+    margin-top: 12px;
+  }
+  .sign-rules {
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px; letter-spacing: 0.08em;
+    line-height: 1.7;
+    color: var(--ink);
+  }
+  .sign-rules div {
+    display: flex; justify-content: space-between;
+    border-top: 1.5px solid var(--ink);
+    padding: 4px 0;
+  }
+  .sign-rules div:first-child { border-top: none; }
+
+  /* hero stats ticker */
+  .ticker {
+    margin-top: 64px;
+    border-top: 2px solid var(--ink);
+    border-bottom: 2px solid var(--ink);
+    background: var(--paper-2);
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    max-width: 1320px;
+    margin-left: auto; margin-right: auto;
+  }
+  .ticker > div {
+    padding: 22px 24px;
+    border-right: 1px solid var(--rule);
+  }
+  .ticker > div:last-child { border-right: none; }
+  .ticker-label {
+    font-family: 'Geist Mono', monospace;
+    font-size: 10px; letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin-bottom: 6px;
+  }
+  .ticker-val {
+    font-family: 'Anton', sans-serif;
+    font-size: 36px;
+    line-height: 1;
+  }
+  .ticker-val .unit {
+    font-family: 'Geist Mono', monospace;
+    font-size: 13px;
+    margin-left: 6px;
+    color: var(--ink-soft);
+  }
+
+  /* ---------- SECTIONS ---------- */
+  section {
+    padding: 90px 28px;
+    border-bottom: 2px solid var(--ink);
+    position: relative;
+  }
+  .container { max-width: 1320px; margin: 0 auto; }
+
+  .section-head {
+    display: flex; justify-content: space-between; align-items: end;
+    margin-bottom: 48px;
+    gap: 24px; flex-wrap: wrap;
+  }
+  .section-head .num {
+    font-family: 'Geist Mono', monospace;
+    font-size: 12px; letter-spacing: 0.14em;
+    color: var(--ink-soft);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .section-head h2 {
+    font-family: 'Anton', sans-serif;
+    font-size: clamp(40px, 5vw, 68px);
+    line-height: 0.95;
+    max-width: 640px;
+  }
+  .section-head h2 .it {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-weight: 400;
+    color: var(--ink-soft);
+  }
+  .section-head .lede {
+    max-width: 360px;
+    font-family: 'Fraunces', serif;
+    font-size: 16px;
+    color: var(--ink-soft);
+  }
+
+  /* ---------- COVERAGE ---------- */
+  .coverage-grid {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 0;
+    border: 2px solid var(--ink);
+    background: var(--paper);
+  }
+  .coverage-left {
+    padding: 36px;
+    border-right: 2px solid var(--ink);
+    background: var(--paper-2);
+  }
+
+  .tier-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 28px;
+  }
+  .tier {
+    padding: 18px 14px;
+    border: 2px solid var(--ink);
+    background: var(--paper);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-align: left;
+    font-family: inherit;
+    color: inherit;
+  }
+  .tier:hover { background: var(--paper-2); }
+  .tier.active {
+    background: var(--paint);
+    transform: translate(-2px,-2px);
+    box-shadow: 4px 4px 0 var(--ink);
+  }
+  .tier-name {
+    font-family: 'Anton', sans-serif;
+    font-size: 22px;
+    margin-bottom: 4px;
+  }
+  .tier-price {
+    font-family: 'Geist Mono', monospace;
+    font-size: 12px;
+    color: var(--ink-soft);
+    margin-bottom: 10px;
+  }
+  .tier-meta {
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--ink-soft);
+  }
+  .tier.active .tier-meta { color: var(--ink); }
+
+  .deposit-block {
+    background: var(--ink);
+    color: var(--paper);
+    padding: 24px;
+    border: 2px solid var(--ink);
+  }
+  .deposit-row {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 18px;
+  }
+  .deposit-label {
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px; letter-spacing: 0.16em;
+    text-transform: uppercase;
+    opacity: 0.6;
+  }
+  .deposit-input {
+    display: flex; align-items: baseline;
+    gap: 12px;
+    border-bottom: 2px solid var(--paint);
+    padding-bottom: 10px;
+    margin-bottom: 22px;
+  }
+  .deposit-input input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--paint);
+    font-family: 'Anton', sans-serif;
+    font-size: 56px;
+    outline: none;
+    width: 100%;
+  }
+  .deposit-input .denom {
+    font-family: 'Geist Mono', monospace;
+    font-size: 14px;
+    color: var(--paper);
+    opacity: 0.7;
+  }
+  .breakdown {
+    font-family: 'Geist Mono', monospace;
+    font-size: 12px;
+    line-height: 1.9;
+  }
+  .breakdown div {
+    display: flex; justify-content: space-between;
+    border-top: 1px dashed rgba(241,233,213,0.2);
+    padding: 6px 0;
+  }
+  .breakdown .total {
+    border-top: 2px solid var(--paint);
+    margin-top: 6px;
+    padding-top: 12px;
+    color: var(--paint);
+    font-weight: 600;
+  }
+  .deposit-cta {
+    display: block; width: 100%;
+    margin-top: 22px;
+    background: var(--paint);
+    color: var(--ink);
+    border: none;
+    padding: 16px;
+    font-family: 'Geist Mono', monospace;
+    font-size: 13px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-weight: 700;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: transform 0.15s;
+  }
+  .deposit-cta:hover { transform: translateY(-1px); background: #FFD11A; }
+  .deposit-cta:disabled { background: #6a6a6a; color: #2A2A2A; cursor: not-allowed; transform: none; }
+
+  /* coverage right — your card */
+  .coverage-right {
+    padding: 36px;
+    background: var(--paper);
+  }
+  .id-card {
+    border: 2px solid var(--ink);
+    background: var(--paint);
+    padding: 22px;
+    position: relative;
+    box-shadow: 6px 6px 0 var(--ink);
+    margin-bottom: 24px;
+  }
+  .id-card::before {
+    content: '';
+    position: absolute; inset: 8px;
+    border: 1px dashed var(--ink);
+    pointer-events: none;
+  }
+  .id-card-top {
+    display: flex; justify-content: space-between; align-items: start;
+    margin-bottom: 24px;
+  }
+  .id-card .label {
+    font-family: 'Geist Mono', monospace;
+    font-size: 9px; letter-spacing: 0.18em;
+    text-transform: uppercase;
+    opacity: 0.7;
+  }
+  .id-card-name {
+    font-family: 'Anton', sans-serif;
+    font-size: 28px;
+    line-height: 0.9;
+    margin-top: 4px;
+  }
+  .id-card-tier-badge {
+    background: var(--ink);
+    color: var(--paint);
+    padding: 4px 8px;
+    font-family: 'Geist Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+  }
+  .id-card-meta {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+  }
+  .id-card-meta div { opacity: 0.85; }
+  .id-card-meta strong {
+    display: block;
+    font-size: 13px;
+    margin-top: 2px;
+    color: var(--ink);
+    font-weight: 700;
+  }
+  .id-card-stamp {
+    position: absolute;
+    top: 18px; right: 22px;
+    font-family: 'Anton', sans-serif;
+    color: var(--ticket);
+    border: 3px solid var(--ticket);
+    padding: 4px 8px;
+    transform: rotate(8deg);
+    font-size: 14px;
+    letter-spacing: 0.1em;
+    opacity: 0.85;
+  }
+
+  .pool-stats {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  }
+  .pool-stat {
+    border: 1.5px solid var(--ink);
+    padding: 14px;
+  }
+  .pool-stat .ticker-label { margin-bottom: 4px; }
+  .pool-stat .ticker-val { font-size: 24px; }
+
+  /* ---------- CLAIMS FEED ---------- */
+  .claims-table {
+    border: 2px solid var(--ink);
+    background: var(--paper);
+  }
+  .claims-row {
+    display: grid;
+    grid-template-columns: 110px 1.4fr 1.6fr 90px 120px 110px;
+    gap: 16px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--rule);
+    align-items: center;
+    font-family: 'Geist Mono', monospace;
+    font-size: 12px;
+    transition: background 0.15s;
+  }
+  .claims-row:last-child { border-bottom: none; }
+  .claims-row:hover { background: var(--paper-2); }
+  .claims-head {
+    background: var(--ink);
+    color: var(--paper);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    padding: 12px 20px;
+  }
+  .claims-head:hover { background: var(--ink); }
+  .claim-id { color: var(--ink-soft); }
+  .claim-loc { font-family: 'Geist', sans-serif; font-size: 13px; }
+  .claim-fine { font-weight: 600; }
+  .claim-amt { font-weight: 600; text-align: right; }
+  .claim-status {
+    text-align: center;
+    padding: 4px 8px;
+    border-radius: 2px;
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    font-weight: 700;
+  }
+  .status-paid { background: var(--paid); color: var(--paper); }
+  .status-approved { background: var(--paint); color: var(--ink); }
+  .status-voting {
+    background: var(--paper-2); color: var(--ink);
+    border: 1px solid var(--ink);
+  }
+  .status-rejected { background: var(--ticket); color: var(--paper); }
+
+  .claim-when { color: var(--ink-soft); text-align: right; }
+
+  /* ---------- HOW IT WORKS ---------- */
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+    border: 2px solid var(--ink);
+    background: var(--paper);
+  }
+  .step {
+    padding: 28px;
+    border-right: 2px solid var(--ink);
+    position: relative;
+    background: var(--paper);
+    transition: background 0.2s;
+  }
+  .step:last-child { border-right: none; }
+  .step:hover { background: var(--paper-2); }
+  .step-num {
+    font-family: 'Anton', sans-serif;
+    font-size: 92px;
+    line-height: 0.85;
+    color: var(--paint);
+    -webkit-text-stroke: 2px var(--ink);
+    margin-bottom: 16px;
+  }
+  .step-title {
+    font-family: 'Anton', sans-serif;
+    font-size: 22px;
+    margin-bottom: 10px;
+  }
+  .step-body {
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--ink-soft);
+  }
+
+  /* ---------- CLAIM SUBMIT ---------- */
+  .claim-form {
+    display: grid;
+    grid-template-columns: 1.3fr 1fr;
+    gap: 0;
+    border: 2px solid var(--ink);
+  }
+  .form-side {
+    padding: 36px;
+    background: var(--paper-2);
+    border-right: 2px solid var(--ink);
+  }
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-bottom: 14px;
+  }
+  .field {
+    display: block;
+    width: 100%;
+  }
+  .field label {
+    display: block;
+    font-family: 'Geist Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    color: var(--ink-soft);
+  }
+  .field input, .field select, .field textarea {
+    width: 100%;
+    background: var(--paper);
+    border: 1.5px solid var(--ink);
+    padding: 10px 12px;
+    font-family: 'Geist Mono', monospace;
+    font-size: 13px;
+    color: var(--ink);
+    border-radius: 2px;
+    outline: none;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus {
+    background: #FFF;
+    border-color: var(--paint-deep);
+    box-shadow: 0 0 0 3px rgba(242,194,0,0.25);
+  }
+  .field textarea { resize: vertical; min-height: 70px; }
+  .upload {
+    border: 2px dashed var(--ink);
+    background: var(--paper);
+    padding: 22px;
+    text-align: center;
+    margin-bottom: 14px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .upload:hover { background: var(--paper-2); }
+  .upload-title {
+    font-family: 'Anton', sans-serif;
+    font-size: 18px;
+    margin-bottom: 4px;
+  }
+  .upload-sub {
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-soft);
+  }
+
+  .ticket-preview {
+    padding: 36px;
+    background: var(--paper);
+    position: relative;
+  }
+  .fake-ticket {
+    background: #fff8e1;
+    border: 1.5px solid var(--ink);
+    padding: 20px;
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    line-height: 1.7;
+    position: relative;
+    box-shadow: 4px 4px 0 var(--rule-strong);
+    transform: rotate(-1.5deg);
+  }
+  .fake-ticket-head {
+    display: flex; justify-content: space-between;
+    border-bottom: 1.5px dashed var(--ink);
+    padding-bottom: 8px;
+    margin-bottom: 10px;
+  }
+  .fake-ticket .big {
+    font-family: 'Anton', sans-serif;
+    font-size: 22px;
+    letter-spacing: 0.04em;
+    color: var(--ticket);
+  }
+  .fake-ticket .row {
+    display: flex; justify-content: space-between;
+  }
+  .fake-ticket .stamp {
+    position: absolute;
+    bottom: 16px; right: 16px;
+    font-family: 'Anton', sans-serif;
+    font-size: 16px;
+    border: 2.5px solid var(--paid);
+    color: var(--paid);
+    padding: 3px 8px;
+    transform: rotate(-12deg);
+    letter-spacing: 0.08em;
+  }
+
+  /* ---------- GOVERNANCE ---------- */
+  .gov-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+  .gov-card {
+    border: 2px solid var(--ink);
+    background: var(--paper);
+    padding: 24px;
+  }
+  .gov-card h3 {
+    font-family: 'Anton', sans-serif;
+    font-size: 26px;
+    margin-bottom: 6px;
+  }
+  .gov-card .gov-id {
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    color: var(--ink-soft);
+    margin-bottom: 16px;
+  }
+  .gov-card p {
+    font-family: 'Fraunces', serif;
+    font-size: 15px;
+    color: var(--ink-soft);
+    margin-bottom: 18px;
+  }
+  .vote-bar {
+    height: 14px;
+    background: var(--paper-2);
+    border: 1.5px solid var(--ink);
+    display: flex;
+    overflow: hidden;
+    margin-bottom: 8px;
+  }
+  .vote-yes { background: var(--paid); }
+  .vote-no { background: var(--ticket); }
+  .vote-meta {
+    display: flex; justify-content: space-between;
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+  }
+  .vote-yes-text { color: var(--paid); }
+  .vote-no-text { color: var(--ticket); }
+
+  /* ---------- FOOTER ---------- */
+  footer {
+    background: var(--ink);
+    color: var(--paper);
+    padding: 60px 28px 30px;
+    border-top: 4px solid var(--paint);
+  }
+  .footer-grid {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr 1fr 1fr;
+    gap: 36px;
+    max-width: 1320px;
+    margin: 0 auto 40px;
+  }
+  footer h4 {
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--paint);
+    margin-bottom: 14px;
+  }
+  footer ul { list-style: none; }
+  footer ul li { margin-bottom: 8px; font-size: 13px; }
+  footer a { color: var(--paper); opacity: 0.75; text-decoration: none; }
+  footer a:hover { opacity: 1; color: var(--paint); }
+  .foot-brand {
+    font-family: 'Anton', sans-serif;
+    font-size: 56px;
+    color: var(--paint);
+    line-height: 0.9;
+    margin-bottom: 12px;
+  }
+  .foot-tag {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-size: 16px;
+    opacity: 0.7;
+    max-width: 280px;
+  }
+  .legal {
+    border-top: 1px solid rgba(241,233,213,0.18);
+    padding-top: 20px;
+    max-width: 1320px;
+    margin: 0 auto;
+    display: flex; justify-content: space-between;
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    opacity: 0.55;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  /* hatched divider */
+  .hatch-divider {
+    height: 14px;
+    background-image: repeating-linear-gradient(
+      135deg,
+      var(--ink) 0 8px,
+      var(--paint) 8px 16px
+    );
+  }
+
+  /* responsive */
+  @media (max-width: 980px) {
+    nav.primary { display: none; }
+    .hero-grid { grid-template-columns: 1fr; gap: 36px; }
+    .ticker { grid-template-columns: 1fr 1fr; }
+    .ticker > div:nth-child(2n) { border-right: none; }
+    .ticker > div:nth-child(-n+2) { border-bottom: 1px solid var(--rule); }
+    .coverage-grid { grid-template-columns: 1fr; }
+    .coverage-left { border-right: none; border-bottom: 2px solid var(--ink); }
+    .tier-row { grid-template-columns: 1fr; }
+    .steps { grid-template-columns: 1fr 1fr; }
+    .step:nth-child(2) { border-right: none; }
+    .step:nth-child(-n+2) { border-bottom: 2px solid var(--ink); }
+    .claim-form { grid-template-columns: 1fr; }
+    .form-side { border-right: none; border-bottom: 2px solid var(--ink); }
+    .gov-grid { grid-template-columns: 1fr; }
+    .footer-grid { grid-template-columns: 1fr 1fr; }
+    .claims-row {
+      grid-template-columns: 1fr 1fr;
+      font-size: 11px;
+    }
+    .claims-head { display: none; }
+    .form-row { grid-template-columns: 1fr; }
+  }
+
+  @media (max-width: 540px) {
+    section { padding: 60px 18px; }
+    .hero { padding: 56px 18px 36px; }
+    header.bar { padding: 12px 18px; }
+    .footer-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="brand">
+    <div class="p-mark">P</div>
+    FAIRGO
+    <small>v1.2.0 · base</small>
+  </div>
+  <nav class="primary">
+    <a href="#pool">Pool</a>
+    <a href="#claims">Claims</a>
+    <a href="#submit">Submit</a>
+    <a href="#governance">Governance</a>
+    <a href="#docs">Docs</a>
+  </nav>
+  <button class="wallet-btn" id="walletBtn" onclick="toggleWallet()">Connect Wallet</button>
+</header>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-grid">
+    <div>
+      <div class="eyebrow"><span class="dot"></span> Pool Open · Live on Base · 4,231 mates covered</div>
+      <h1 class="hero-title">
+        Park <em>Without</em><br>
+        Worry.
+        <span class="ital">Parking insurance, on-chain.</span>
+      </h1>
+      <p class="hero-sub">
+        Deposit <b>AUDM</b>. Cop a fine? The <b>FAIRGO Treasury</b> reimburses you on-chain — verified by holders, paid in seconds. Council can keep the meter running. We've got your back.
+      </p>
+      <div class="cta-row">
+        <a href="#pool" class="btn btn-primary">Get Coverage →</a>
+        <a href="#how" class="btn btn-ghost">How it Works</a>
+      </div>
+    </div>
+
+    <div class="sign">
+      <div class="sign-rules">
+        <div><span>MON–FRI</span><span>8AM–6PM</span></div>
+        <div><span>SAT</span><span>8AM–12PM</span></div>
+        <div><span>SUN</span><span>FREE</span></div>
+      </div>
+      <div class="sign-p">P</div>
+      <div class="sign-rules">
+        <div><span>1 HR · TICKET</span><span>$2.50/hr</span></div>
+        <div><span>FAIRGO COVERED</span><span>YES ✓</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ticker">
+    <div>
+      <div class="ticker-label">Treasury TVL</div>
+      <div class="ticker-val tnum">1,247,830<span class="unit">AUDM</span></div>
+    </div>
+    <div>
+      <div class="ticker-label">Active Cover</div>
+      <div class="ticker-val tnum">4,231<span class="unit">MATES</span></div>
+    </div>
+    <div>
+      <div class="ticker-label">Claims Paid (30d)</div>
+      <div class="ticker-val tnum">312<span class="unit">PAID</span></div>
+    </div>
+    <div>
+      <div class="ticker-label">Approval Rate</div>
+      <div class="ticker-val tnum">94.2<span class="unit">%</span></div>
+    </div>
+  </div>
+</section>
+
+<div class="hatch-divider"></div>
+
+<!-- COVERAGE -->
+<section id="pool">
+  <div class="container">
+    <div class="section-head">
+      <div>
+        <div class="num">01 · The Pool</div>
+        <h2>Pick your tier.<br><span class="it">Slide your AUDM in.</span></h2>
+      </div>
+      <div class="lede">
+        Coverage is monthly, non-custodial, and revocable. Withdraw your stake any time you don't have an active claim.
+      </div>
+    </div>
+
+    <div class="coverage-grid">
+      <div class="coverage-left">
+        <div class="tier-row">
+          <button class="tier" data-tier="basic" data-price="50" data-cap="200" onclick="selectTier(this)">
+            <div class="tier-name">BASIC</div>
+            <div class="tier-price">50 AUDM / mo</div>
+            <div class="tier-meta">Up to 200 AUDM in fines covered. Single vehicle. Council parking only.</div>
+          </button>
+          <button class="tier active" data-tier="standard" data-price="120" data-cap="500" onclick="selectTier(this)">
+            <div class="tier-name">STANDARD</div>
+            <div class="tier-price">120 AUDM / mo</div>
+            <div class="tier-meta">Up to 500 AUDM. Two vehicles. Includes private carparks &amp; expired meter.</div>
+          </button>
+          <button class="tier" data-tier="tradie" data-price="280" data-cap="1500" onclick="selectTier(this)">
+            <div class="tier-name">TRADIE</div>
+            <div class="tier-price">280 AUDM / mo</div>
+            <div class="tier-meta">Up to 1,500 AUDM. Unlimited vehicles. Loading zones included. For the serial offender.</div>
+          </button>
+        </div>
+
+        <div class="deposit-block">
+          <div class="deposit-row">
+            <span class="deposit-label">Deposit Amount</span>
+            <span class="deposit-label">Balance: <span id="audmBal" class="tnum">2,450.00 AUDM</span></span>
+          </div>
+          <div class="deposit-input">
+            <input id="depAmt" type="number" min="0" value="120" oninput="recalc()">
+            <span class="denom">AUDM</span>
+          </div>
+          <div class="breakdown">
+            <div><span>Selected Tier</span><span id="brkTier">STANDARD</span></div>
+            <div><span>Premium / month</span><span id="brkPrem" class="tnum">120.00 AUDM</span></div>
+            <div><span>Coverage Cap / month</span><span id="brkCap" class="tnum">500.00 AUDM</span></div>
+            <div><span>Pool Share Estimate</span><span id="brkShare" class="tnum">0.0096 %</span></div>
+            <div><span>Lock Period</span><span>30 days</span></div>
+            <div class="total"><span>You Stake</span><span id="brkTotal" class="tnum">120.00 AUDM</span></div>
+          </div>
+          <button class="deposit-cta" id="depBtn" onclick="alert('Approve AUDM in your wallet to continue. (demo)')">
+            Deposit &amp; Activate Cover
+          </button>
+        </div>
+      </div>
+
+      <div class="coverage-right">
+        <div class="id-card">
+          <div class="id-card-stamp">ACTIVE</div>
+          <div class="id-card-top">
+            <div>
+              <div class="label">Member ID</div>
+              <div class="id-card-name">Lucas H.</div>
+            </div>
+            <div class="id-card-tier-badge">STANDARD · #3,142</div>
+          </div>
+          <div class="id-card-meta">
+            <div>VEHICLE<br><strong>QLD · 047 LCS</strong></div>
+            <div>RENEWS<br><strong>Jun 09 · Auto</strong></div>
+            <div>WALLET<br><strong class="mono">0x8a4f…dE12</strong></div>
+            <div>CLAIMS USED<br><strong>0 / 500 AUDM</strong></div>
+          </div>
+        </div>
+
+        <div class="pool-stats">
+          <div class="pool-stat">
+            <div class="ticker-label">Your Premium APR</div>
+            <div class="ticker-val tnum">12.4<span class="unit">%</span></div>
+          </div>
+          <div class="pool-stat">
+            <div class="ticker-label">Pool Yield (Aave)</div>
+            <div class="ticker-val tnum">3.8<span class="unit">%</span></div>
+          </div>
+          <div class="pool-stat">
+            <div class="ticker-label">Days Covered</div>
+            <div class="ticker-val tnum">87<span class="unit">D</span></div>
+          </div>
+          <div class="pool-stat">
+            <div class="ticker-label">Next Vote Weight</div>
+            <div class="ticker-val tnum">1.18<span class="unit">×</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section id="how">
+  <div class="container">
+    <div class="section-head">
+      <div>
+        <div class="num">02 · The Mechanism</div>
+        <h2>Four steps.<br><span class="it">No paperwork.</span></h2>
+      </div>
+      <div class="lede">
+        Premiums sit in an audited contract earning yield. Approved claims pay out from the same pool. Surplus flows to depositors quarterly.
+      </div>
+    </div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">01</div>
+        <div class="step-title">DEPOSIT</div>
+        <div class="step-body">Stake AUDM into the FAIRGO pool contract. Receive a soulbound coverage NFT proving your tier &amp; vehicle plate.</div>
+      </div>
+      <div class="step">
+        <div class="step-num">02</div>
+        <div class="step-title">PARK</div>
+        <div class="step-body">Live your life. Loading zones, expired meters, the lot — within your tier limits. We won't judge.</div>
+      </div>
+      <div class="step">
+        <div class="step-num">03</div>
+        <div class="step-title">SUBMIT</div>
+        <div class="step-body">Cop a fine? Snap it &amp; submit. The infringement ID is verified against state council APIs. Auto-approved if it matches.</div>
+      </div>
+      <div class="step">
+        <div class="step-num">04</div>
+        <div class="step-title">PAID</div>
+        <div class="step-body">AUDM lands in your wallet — or pays the council direct via the bridge. Sub-60 second settlement on Base.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- LIVE CLAIMS FEED -->
+<section id="claims">
+  <div class="container">
+    <div class="section-head">
+      <div>
+        <div class="num">03 · Transparency</div>
+        <h2>Live claims feed.<br><span class="it">Every payout, on-chain.</span></h2>
+      </div>
+      <div class="lede">
+        Each claim is verifiable on the explorer. Voters can dispute up to 24h after auto-approval. Fraud penalties slash the submitter's stake.
+      </div>
+    </div>
+
+    <div class="claims-table">
+      <div class="claims-row claims-head">
+        <div>CLAIM ID</div>
+        <div>LOCATION</div>
+        <div>OFFENCE</div>
+        <div>AMOUNT</div>
+        <div>STATUS</div>
+        <div>WHEN</div>
+      </div>
+      <div class="claims-row">
+        <div class="claim-id">#FG-2841</div>
+        <div class="claim-loc">Brunswick St, Fitzroy VIC</div>
+        <div class="claim-fine">Expired meter</div>
+        <div class="claim-amt">98.00</div>
+        <div class="claim-status status-paid">PAID</div>
+        <div class="claim-when">2 min ago</div>
+      </div>
+      <div class="claims-row">
+        <div class="claim-id">#FG-2840</div>
+        <div class="claim-loc">Wickham St, Fortitude Valley QLD</div>
+        <div class="claim-fine">No standing</div>
+        <div class="claim-amt">156.00</div>
+        <div class="claim-status status-approved">APPROVED</div>
+        <div class="claim-when">11 min ago</div>
+      </div>
+      <div class="claims-row">
+        <div class="claim-id">#FG-2839</div>
+        <div class="claim-loc">Campbell Pde, Bondi Beach NSW</div>
+        <div class="claim-fine">Permit zone violation</div>
+        <div class="claim-amt">87.00</div>
+        <div class="claim-status status-voting">VOTING · 1H</div>
+        <div class="claim-when">28 min ago</div>
+      </div>
+      <div class="claims-row">
+        <div class="claim-id">#FG-2838</div>
+        <div class="claim-loc">Cavill Ave, Surfers Paradise QLD</div>
+        <div class="claim-fine">Loading zone, &gt;15 min</div>
+        <div class="claim-amt">112.00</div>
+        <div class="claim-status status-paid">PAID</div>
+        <div class="claim-when">42 min ago</div>
+      </div>
+      <div class="claims-row">
+        <div class="claim-id">#FG-2837</div>
+        <div class="claim-loc">Rundle St, Adelaide SA</div>
+        <div class="claim-fine">Disabled bay (no permit)</div>
+        <div class="claim-amt">827.00</div>
+        <div class="claim-status status-rejected">REJECTED</div>
+        <div class="claim-when">1 hr ago</div>
+      </div>
+      <div class="claims-row">
+        <div class="claim-id">#FG-2836</div>
+        <div class="claim-loc">Hay St Mall, Perth WA</div>
+        <div class="claim-fine">Time limit exceeded</div>
+        <div class="claim-amt">66.00</div>
+        <div class="claim-status status-paid">PAID</div>
+        <div class="claim-when">2 hr ago</div>
+      </div>
+      <div class="claims-row">
+        <div class="claim-id">#FG-2835</div>
+        <div class="claim-loc">Salamanca Pl, Hobart TAS</div>
+        <div class="claim-fine">No ticket displayed</div>
+        <div class="claim-amt">79.00</div>
+        <div class="claim-status status-paid">PAID</div>
+        <div class="claim-when">3 hr ago</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SUBMIT CLAIM -->
+<section id="submit">
+  <div class="container">
+    <div class="section-head">
+      <div>
+        <div class="num">04 · Lodge a Claim</div>
+        <h2>Got a ticket?<br><span class="it">Hand it over.</span></h2>
+      </div>
+      <div class="lede">
+        Submission auto-cross-checks against the issuing council's infringement registry via FairGo Oracle. Most claims are approved in under 90 seconds.
+      </div>
+    </div>
+
+    <div class="claim-form">
+      <div class="form-side">
+        <div class="upload" onclick="document.getElementById('fileInp').click()">
+          <input type="file" id="fileInp" hidden accept="image/*,.pdf">
+          <div class="upload-title">↑ Drop or scan your fine</div>
+          <div class="upload-sub">JPG · PNG · PDF · max 8 MB</div>
+        </div>
+
+        <div class="form-row">
+          <div class="field">
+            <label>Issuing Authority</label>
+            <select>
+              <option>Brisbane City Council</option>
+              <option>City of Melbourne</option>
+              <option>City of Sydney</option>
+              <option>Gold Coast City Council</option>
+              <option>Sunshine Coast Regional</option>
+              <option>City of Perth</option>
+              <option>NSW Police (Privately enforced)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Infringement #</label>
+            <input type="text" placeholder="e.g. 47823-2026-Q">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="field">
+            <label>Date of Offence</label>
+            <input type="date" value="2026-05-08">
+          </div>
+          <div class="field">
+            <label>Fine Amount (AUD)</label>
+            <input type="number" placeholder="0.00" value="156">
+          </div>
+        </div>
+
+        <div class="field" style="margin-bottom:14px">
+          <label>Notes for the DAO</label>
+          <textarea placeholder="Optional. Won't change the outcome — the oracle is the source of truth."></textarea>
+        </div>
+
+        <button class="deposit-cta" onclick="alert('Submitting to FAIRGO Oracle… (demo)')" style="background:var(--paint);color:var(--ink)">
+          Submit Claim →
+        </button>
+      </div>
+
+      <div class="ticket-preview">
+        <div style="font-family:'Geist Mono',monospace;font-size:10px;letter-spacing:0.16em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:14px">Preview</div>
+        <div class="fake-ticket">
+          <div class="fake-ticket-head">
+            <div>
+              <div style="font-size:9px;letter-spacing:0.15em">QUEENSLAND · BRISBANE</div>
+              <div class="big">PARKING INFRINGEMENT</div>
+            </div>
+            <div style="text-align:right;font-size:10px">No.<br>47823-2026-Q</div>
+          </div>
+          <div class="row"><span>VEHICLE</span><span>QLD 047 LCS</span></div>
+          <div class="row"><span>OFFENCE</span><span>NO STANDING</span></div>
+          <div class="row"><span>LOCATION</span><span>WICKHAM ST</span></div>
+          <div class="row"><span>DATE</span><span>08 MAY 2026 · 14:21</span></div>
+          <div class="row" style="border-top:1px dashed var(--ink);padding-top:6px;margin-top:6px"><span><b>PENALTY</b></span><span><b>$156.00</b></span></div>
+          <div class="stamp">FAIRGO ✓</div>
+        </div>
+        <div style="margin-top:18px;font-family:'Fraunces',serif;font-style:italic;font-size:14px;color:var(--ink-soft);line-height:1.5">
+          "Brought it home in under 90 seconds. Reckon I'll keep the change."
+          <div style="font-style:normal;font-family:'Geist Mono',monospace;font-size:11px;margin-top:6px">— 0x8a4f…dE12</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- GOVERNANCE -->
+<section id="governance">
+  <div class="container">
+    <div class="section-head">
+      <div>
+        <div class="num">05 · The DAO</div>
+        <h2>Holders set the rules.<br><span class="it">Even the cheeky ones.</span></h2>
+      </div>
+      <div class="lede">
+        FAIRGO is governed by AUDM depositors weighted by stake-time. Vote on parameters, fraud disputes, and treasury allocation.
+      </div>
+    </div>
+
+    <div class="gov-grid">
+      <div class="gov-card">
+        <h3>Lower premium for EV drivers</h3>
+        <div class="gov-id">FAIRGO-23 · Closes in 2d 14h · Quorum reached</div>
+        <p>Reduce STANDARD tier from 120 to 100 AUDM/mo for vehicles registered electric. Council parking levy is 50% lower for EVs in most LGAs, so the pool risk drops with it.</p>
+        <div class="vote-bar">
+          <div class="vote-yes" style="width:62%"></div>
+          <div class="vote-no" style="width:38%"></div>
+        </div>
+        <div class="vote-meta">
+          <span class="vote-yes-text">YES · 62.4% · 412k AUDM</span>
+          <span class="vote-no-text">NO · 37.6% · 248k AUDM</span>
+        </div>
+      </div>
+
+      <div class="gov-card">
+        <h3>Slash fraudulent claim #FG-2741</h3>
+        <div class="gov-id">FAIRGO-22 · Closes in 19h · Quorum reached</div>
+        <p>Wallet 0x91…b7c2 submitted a doctored infringement number. Oracle flagged. Proposal to slash 100% of staked AUDM and ban the soulbound NFT.</p>
+        <div class="vote-bar">
+          <div class="vote-yes" style="width:91%"></div>
+          <div class="vote-no" style="width:9%"></div>
+        </div>
+        <div class="vote-meta">
+          <span class="vote-yes-text">SLASH · 91.2%</span>
+          <span class="vote-no-text">SPARE · 8.8%</span>
+        </div>
+      </div>
+
+      <div class="gov-card">
+        <h3>Add Auckland Council to oracle</h3>
+        <div class="gov-id">FAIRGO-21 · Closes in 5d · Quorum 41%</div>
+        <p>Expand FAIRGO to NZ. Auckland Transport's API supports infringement lookup. Premium tier "Kiwi" priced at 130 AUDM. Bridges via AUDM ↔ NZDD.</p>
+        <div class="vote-bar">
+          <div class="vote-yes" style="width:71%"></div>
+          <div class="vote-no" style="width:29%"></div>
+        </div>
+        <div class="vote-meta">
+          <span class="vote-yes-text">YES · 71.0%</span>
+          <span class="vote-no-text">NO · 29.0%</span>
+        </div>
+      </div>
+
+      <div class="gov-card">
+        <h3>Quarterly surplus distribution</h3>
+        <div class="gov-id">FAIRGO-20 · Q1 2026 · Executed</div>
+        <p>118,400 AUDM treasury surplus distributed pro-rata to depositors. Proportional to time-weighted stake during the period.</p>
+        <div class="vote-bar">
+          <div class="vote-yes" style="width:96%"></div>
+          <div class="vote-no" style="width:4%"></div>
+        </div>
+        <div class="vote-meta">
+          <span class="vote-yes-text">PASSED · 96.1%</span>
+          <span style="color:var(--ink-soft)">EXECUTED 12 APR</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="hatch-divider"></div>
+
+<footer id="docs">
+  <div class="footer-grid">
+    <div>
+      <div class="foot-brand">FAIRGO</div>
+      <div class="foot-tag">Parking insurance, on-chain. Fair dinkum.</div>
+    </div>
+    <div>
+      <h4>Protocol</h4>
+      <ul>
+        <li><a href="#">Pool Contract</a></li>
+        <li><a href="#">Oracle Spec</a></li>
+        <li><a href="#">AUDM Token</a></li>
+        <li><a href="#">Audits (Trail of Bits)</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4>Use</h4>
+      <ul>
+        <li><a href="#pool">Get Cover</a></li>
+        <li><a href="#submit">Lodge a Claim</a></li>
+        <li><a href="#governance">Vote</a></li>
+        <li><a href="#">Bridge AUDM</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4>Mates</h4>
+      <ul>
+        <li><a href="#">Discord</a></li>
+        <li><a href="#">Mirror</a></li>
+        <li><a href="#">GitHub</a></li>
+        <li><a href="#">Press</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="legal">
+    <div>FAIRGO LABS PTY LTD · ABN 22 482 991 003 · BRISBANE QLD</div>
+    <div>NOT LEGAL OR FINANCIAL ADVICE · COVERAGE SUBJECT TO POOL TERMS · REPENT-FREE ZONE</div>
+  </div>
+</footer>
+
+<script>
+  function toggleWallet() {
+    const b = document.getElementById('walletBtn');
+    if (b.classList.contains('connected')) {
+      b.classList.remove('connected');
+      b.textContent = 'Connect Wallet';
+    } else {
+      b.classList.add('connected');
+      b.innerHTML = '0x8a4f…dE12';
+    }
+  }
+
+  function selectTier(el) {
+    document.querySelectorAll('.tier').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+    const price = parseFloat(el.dataset.price);
+    document.getElementById('depAmt').value = price;
+    recalc();
+  }
+
+  function recalc() {
+    const active = document.querySelector('.tier.active');
+    const tier = active.dataset.tier.toUpperCase();
+    const price = parseFloat(active.dataset.price);
+    const cap = parseFloat(active.dataset.cap);
+    const amt = parseFloat(document.getElementById('depAmt').value || 0);
+
+    document.getElementById('brkTier').textContent = tier;
+    document.getElementById('brkPrem').textContent = price.toFixed(2) + ' AUDM';
+    document.getElementById('brkCap').textContent = cap.toFixed(2) + ' AUDM';
+    document.getElementById('brkTotal').textContent = amt.toFixed(2) + ' AUDM';
+
+    const tvl = 1247830;
+    const share = ((amt / tvl) * 100).toFixed(4);
+    document.getElementById('brkShare').textContent = share + ' %';
+
+    const btn = document.getElementById('depBtn');
+    if (amt < price) {
+      btn.disabled = true;
+      btn.textContent = `Need ${(price - amt).toFixed(0)} more AUDM`;
+    } else {
+      btn.disabled = false;
+      btn.textContent = 'Deposit & Activate Cover';
+    }
+  }
+
+  // simulate live claim updates
+  setInterval(() => {
+    const tickerVal = document.querySelectorAll('.ticker-val.tnum')[0];
+    if (tickerVal) {
+      const cur = parseInt(tickerVal.textContent.replace(/,/g,''));
+      const next = cur + Math.floor(Math.random() * 50);
+      tickerVal.firstChild.nodeValue = next.toLocaleString();
+    }
+  }, 4000);
+
+  recalc();
+</script>
+</body>
+</html>
