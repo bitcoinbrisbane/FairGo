@@ -1,22 +1,25 @@
-import { useMemo, useState } from 'react';
-import { useAccount } from 'wagmi';
-import { TIERS, type TierId } from '../data';
+import { useMemo, useState } from "react";
+import { useAccount } from "wagmi";
+import { TIERS, type TierId } from "../data";
 
 const TVL = 1247830;
+const TOKENS = ["AUDM", "USDT", "USDC"] as const;
+type Token = (typeof TOKENS)[number];
 
 export function Coverage() {
   const { address, isConnected } = useAccount();
-  const [tierId, setTierId] = useState<TierId>('standard');
+  const [tierId, setTierId] = useState<TierId>("standard");
   const [amount, setAmount] = useState<number>(120);
+  const [token, setToken] = useState<Token>("AUDM");
 
   const tier = useMemo(() => TIERS.find((t) => t.id === tierId)!, [tierId]);
   const sharePct = ((amount / TVL) * 100).toFixed(4);
-  const shortAddr = address ? `${address.slice(0, 6)}…${address.slice(-4)}` : '0x8a4f…dE12';
+  const shortAddr = address ? `${address.slice(0, 6)}…${address.slice(-4)}` : "0x8a4f…dE12";
 
   const insufficient = amount < tier.price;
   const ctaLabel = insufficient
-    ? `Need ${(tier.price - amount).toFixed(0)} more AUDM`
-    : 'Deposit & Activate Cover';
+    ? `Need ${(tier.price - amount).toFixed(0)} more ${token}`
+    : "Deposit & Activate Cover";
 
   const onTier = (t: TierId) => {
     const next = TIERS.find((x) => x.id === t)!;
@@ -26,10 +29,11 @@ export function Coverage() {
 
   const onDeposit = () => {
     if (!isConnected) {
-      alert('Connect your wallet first.');
+      alert("Connect your wallet first.");
       return;
     }
-    alert('Approve AUDM in your wallet to continue. (demo)');
+    const swapNote = token === "AUDM" ? "" : ` Will auto-swap ${token} → AUDM via Uniswap.`;
+    alert(`Approve ${token} in your wallet to continue.${swapNote} (demo)`);
   };
 
   return (
@@ -71,7 +75,7 @@ export function Coverage() {
               <div className="deposit-row">
                 <span className="deposit-label">Deposit Amount</span>
                 <span className="deposit-label">
-                  Balance: <span className="tnum">2,450.00 AUDM</span>
+                  Balance: <span className="tnum">2,450.00 {token}</span>
                 </span>
               </div>
               <div className="deposit-input">
@@ -81,8 +85,21 @@ export function Coverage() {
                   value={amount}
                   onChange={(e) => setAmount(Number(e.target.value || 0))}
                 />
-                <span className="denom">AUDM</span>
+                <select
+                  className="denom denom-select"
+                  value={token}
+                  onChange={(e) => setToken(e.target.value as Token)}
+                >
+                  {TOKENS.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
               </div>
+              {token !== "AUDM" && (
+                <div className="swap-note">↳ {token} auto-swaps to AUDM via Uniswap on deposit.</div>
+              )}
               <div className="breakdown">
                 <div>
                   <span>Selected Tier</span>

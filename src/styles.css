@@ -314,12 +314,17 @@ h1.hero-title em {
   padding: 4px 10px;
 }
 .sign-p {
-  font-family: 'Anton', sans-serif;
-  font-size: clamp(120px, 18vw, 220px);
-  line-height: 0.8;
   color: var(--ink);
   align-self: center;
   margin-top: 12px;
+  width: clamp(180px, 26vw, 300px);
+  display: flex;
+  justify-content: center;
+}
+.sign-p svg {
+  width: 100%;
+  height: auto;
+  display: block;
 }
 .sign-rules {
   font-family: 'Geist Mono', monospace;
@@ -522,6 +527,28 @@ section {
   font-size: 14px;
   color: var(--paper);
   opacity: 0.7;
+}
+.deposit-input .denom-select {
+  background: transparent;
+  border: 1px solid rgba(241, 233, 213, 0.3);
+  border-radius: 4px;
+  padding: 4px 8px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  outline: none;
+  opacity: 1;
+}
+.deposit-input .denom-select:hover,
+.deposit-input .denom-select:focus {
+  border-color: var(--paint);
+}
+.swap-note {
+  font-family: 'Geist Mono', monospace;
+  font-size: 11px;
+  color: var(--paper);
+  opacity: 0.65;
+  margin: -14px 0 18px;
+  letter-spacing: 0.04em;
 }
 .breakdown {
   font-family: 'Geist Mono', monospace;

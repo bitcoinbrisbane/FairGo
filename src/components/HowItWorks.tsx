@@ -9,7 +9,7 @@ const STEPS = [
     n: '02',
     title: 'PARK',
     body:
-      "Live your life. Loading zones, expired meters, the lot — within your tier limits. We won't judge.",
+      "Live your life. Loading zones, expired meters, the lot. All within your tier limits. We won't judge.",
   },
   {
     n: '03',
@@ -18,10 +18,10 @@ const STEPS = [
       'Cop a fine? Snap it & submit. The infringement ID is verified against state council APIs. Auto-approved if it matches.',
   },
   {
-    n: '04',
-    title: 'PAID',
+    n: "04",
+    title: "PAID",
     body:
-      'AUDM lands in your wallet — or pays the council direct via the bridge. Sub-60 second settlement on Base.',
+      "The DAO pays the council in real AUD on your behalf. No crypto in the council's hands. Just a fiat settlement to the issuing authority, lodged against your claim on-chain.",
   },
 ];
 

@@ -250,13 +250,14 @@
     padding: 4px 10px;
   }
   .sign-p {
-    font-family: 'Anton', sans-serif;
-    font-size: clamp(120px, 18vw, 220px);
-    line-height: 0.8;
     color: var(--ink);
     align-self: center;
     margin-top: 12px;
+    width: clamp(180px, 26vw, 300px);
+    display: flex;
+    justify-content: center;
   }
+  .sign-p svg { width: 100%; height: auto; display: block; }
   .sign-rules {
     font-family: 'Geist Mono', monospace;
     font-size: 11px; letter-spacing: 0.08em;
@@ -899,7 +900,7 @@
   <div class="brand">
     <div class="p-mark">P</div>
     FAIRGO
-    <small>v1.2.0 · base</small>
+    <small>v0.0.1 · base</small>
   </div>
   <nav class="primary">
     <a href="#pool">Pool</a>
