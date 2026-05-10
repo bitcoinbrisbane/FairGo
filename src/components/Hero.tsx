@@ -53,11 +53,7 @@ export function Hero() {
               <span>FREE</span>
             </div>
           </div>
-          <div className="sign-p" aria-label="Kangaroo">
-            <svg viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg" fill="currentColor" aria-hidden="true">
-              <path d="M192 50c-5-6-12-8-20-7l-2-12h-4l1 13-9-13h-4l2 13c-9 2-16-1-24-8-16-12-40-14-56-6-10 5-16 14-16 24-10 6-22 16-34 30-8 8-14 16-14 18l10 6c6-8 16-16 28-24 14-8 28-12 38-12h12c6 4 12 12 14 22l-4 8-10 8 30 3h30v-7l-16-4c-12-6-18-14-14-22l8-4c0 8 4 12 8 12h6v-6c2-6 6-10 10-14l12-6c8-4 14-8 18-12z"/>
-            </svg>
-          </div>
+          <div className="sign-p">P</div>
           <div className="sign-rules">
             <div>
               <span>1 HR · TICKET</span>

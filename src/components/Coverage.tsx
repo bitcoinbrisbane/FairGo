@@ -151,7 +151,7 @@ export function Coverage() {
                 <div>
                   VEHICLE
                   <br />
-                  <strong>QLD · 047 LCS</strong>
+                  <strong className="mono">0x4f2e…9b3c</strong>
                 </div>
                 <div>
                   RENEWS
