@@ -49,6 +49,9 @@ contract FairGoPool is AccessControl, ReentrancyGuard, Pausable {
 
     IERC20 public immutable audm;
     IERC20 public immutable usdt;
+    /// @notice Interest-bearing aUSDT — its `balanceOf(this)` equals USDT
+    ///         principal plus accrued AAVE yield, used by `harvest()`.
+    IERC20 public immutable aUsdt;
     ICoverageNFT public immutable coverageNFT;
     IUniswapV3SwapRouter public immutable swapRouter;
     IAaveV3Pool public immutable aavePool;
@@ -108,6 +111,7 @@ contract FairGoPool is AccessControl, ReentrancyGuard, Pausable {
     event ClaimApproved(uint256 indexed claimId, uint256 amount);
     event ClaimRejected(uint256 indexed claimId);
     event ClaimPaid(uint256 indexed claimId, address indexed payee, uint256 amount, uint256 usdtUnwound);
+    event YieldHarvested(address indexed to, uint256 usdtAmount);
 
     error PositionLocked();
     error NotMember();
@@ -121,6 +125,7 @@ contract FairGoPool is AccessControl, ReentrancyGuard, Pausable {
     constructor(
         IERC20 _audm,
         IERC20 _usdt,
+        IERC20 _aUsdt,
         ICoverageNFT _coverageNFT,
         IUniswapV3SwapRouter _swapRouter,
         IAaveV3Pool _aavePool,
@@ -132,6 +137,7 @@ contract FairGoPool is AccessControl, ReentrancyGuard, Pausable {
         if (
             address(_audm) == address(0) ||
             address(_usdt) == address(0) ||
+            address(_aUsdt) == address(0) ||
             address(_coverageNFT) == address(0) ||
             address(_swapRouter) == address(0) ||
             address(_aavePool) == address(0) ||
@@ -141,6 +147,7 @@ contract FairGoPool is AccessControl, ReentrancyGuard, Pausable {
 
         audm = _audm;
         usdt = _usdt;
+        aUsdt = _aUsdt;
         coverageNFT = _coverageNFT;
         swapRouter = _swapRouter;
         aavePool = _aavePool;
@@ -306,6 +313,26 @@ contract FairGoPool is AccessControl, ReentrancyGuard, Pausable {
 
     function coverageAvailable(uint256 tokenId) external view returns (uint256) {
         return _availableCoverage(positionOf[tokenId]);
+    }
+
+    /// @notice AAVE yield available to harvest (aUSDT balance minus principal).
+    function accruedYield() public view returns (uint256) {
+        uint256 bal = aUsdt.balanceOf(address(this));
+        return bal > usdtPrincipal ? bal - usdtPrincipal : 0;
+    }
+
+    // ---------------------------------------------------------------------
+    // Treasury: harvest AAVE yield
+    // ---------------------------------------------------------------------
+
+    /// @notice Withdraw accrued AAVE yield to `to` as USDT, leaving principal
+    ///         intact. Returns the USDT amount transferred (0 if no yield).
+    function harvest(address to) external onlyRole(TREASURY_ROLE) nonReentrant returns (uint256 yieldUsdt) {
+        if (to == address(0)) revert ZeroAddress();
+        yieldUsdt = accruedYield();
+        if (yieldUsdt == 0) return 0;
+        aavePool.withdraw(address(usdt), yieldUsdt, to);
+        emit YieldHarvested(to, yieldUsdt);
     }
 
     // ---------------------------------------------------------------------

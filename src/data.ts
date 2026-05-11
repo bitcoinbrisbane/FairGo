@@ -1,35 +1,26 @@
-export type TierId = 'basic' | 'standard' | 'tradie';
+// Pool economics — must mirror the on-chain immutables in FairGoPool.sol.
+export const POOL = {
+  waitDays: 30,        // WAIT_PERIOD
+  monthDays: 30,       // MONTH
+  k: 1.5,              // K_WAD
+  investBps: 8000,     // 80% of every deposit goes to USDT → AAVE
+  bufferBps: 2000,     // 20% stays as AUDM in the pool for instant claims
+} as const;
 
-export interface Tier {
-  id: TierId;
-  name: string;
-  price: number;
-  cap: number;
-  meta: string;
+/// Lifetime claim cap (in AUDM) for a given stake at `monthsAfterWait` months
+/// past the wait period. Returns 0 inside the wait window.
+export function coverageCap(stakeAudm: number, monthsAfterWait: number): number {
+  if (monthsAfterWait <= 0) return 0;
+  return stakeAudm * POOL.k * Math.log(1 + monthsAfterWait);
 }
 
-export const TIERS: Tier[] = [
-  {
-    id: 'basic',
-    name: 'BASIC',
-    price: 50,
-    cap: 200,
-    meta: 'Up to 200 AUDM in fines covered. Single vehicle. Council parking only.',
-  },
-  {
-    id: 'standard',
-    name: 'STANDARD',
-    price: 120,
-    cap: 500,
-    meta: 'Up to 500 AUDM. Two vehicles. Includes private carparks & expired meter.',
-  },
-  {
-    id: 'tradie',
-    name: 'TRADIE',
-    price: 280,
-    cap: 1500,
-    meta: 'Up to 1,500 AUDM. Unlimited vehicles. Loading zones included. For the serial offender.',
-  },
+/// Sample tenure points used to render a "your cap over time" preview.
+export const TENURE_PREVIEW: Array<{ label: string; months: number }> = [
+  { label: '+1 mo', months: 1 },
+  { label: '+3 mo', months: 3 },
+  { label: '+6 mo', months: 6 },
+  { label: '+1 yr', months: 12 },
+  { label: '+2 yr', months: 24 },
 ];
 
 export type ClaimStatus = 'paid' | 'approved' | 'voting' | 'rejected';

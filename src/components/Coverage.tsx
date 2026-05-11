@@ -1,31 +1,35 @@
 import { useMemo, useState } from "react";
 import { useAccount } from "wagmi";
-import { TIERS, type TierId } from "../data";
+import { POOL, TENURE_PREVIEW, coverageCap } from "../data";
 
 const TVL = 1247830;
 const TOKENS = ["AUDM", "USDT", "USDC"] as const;
 type Token = (typeof TOKENS)[number];
 
+const MIN_STAKE = 25;
+const fmt = (n: number, dp = 2) =>
+  n.toLocaleString(undefined, { minimumFractionDigits: dp, maximumFractionDigits: dp });
+
 export function Coverage() {
   const { address, isConnected } = useAccount();
-  const [tierId, setTierId] = useState<TierId>("standard");
   const [amount, setAmount] = useState<number>(120);
   const [token, setToken] = useState<Token>("AUDM");
 
-  const tier = useMemo(() => TIERS.find((t) => t.id === tierId)!, [tierId]);
+  const investAmount = (amount * POOL.investBps) / 10000;
+  const bufferAmount = amount - investAmount;
   const sharePct = ((amount / TVL) * 100).toFixed(4);
   const shortAddr = address ? `${address.slice(0, 6)}…${address.slice(-4)}` : "0x8a4f…dE12";
 
-  const insufficient = amount < tier.price;
+  const insufficient = amount < MIN_STAKE;
   const ctaLabel = insufficient
-    ? `Need ${(tier.price - amount).toFixed(0)} more ${token}`
-    : "Deposit & Activate Cover";
+    ? `Min stake ${MIN_STAKE} AUDM`
+    : "Deposit & Mint Soulbound Cover";
 
-  const onTier = (t: TierId) => {
-    const next = TIERS.find((x) => x.id === t)!;
-    setTierId(t);
-    setAmount(next.price);
-  };
+  const tenureRows = useMemo(
+    () => TENURE_PREVIEW.map((p) => ({ ...p, cap: coverageCap(amount, p.months) })),
+    [amount]
+  );
+  const sampleCap12mo = coverageCap(amount, 12);
 
   const onDeposit = () => {
     if (!isConnected) {
@@ -33,7 +37,12 @@ export function Coverage() {
       return;
     }
     const swapNote = token === "AUDM" ? "" : ` Will auto-swap ${token} → AUDM via Uniswap.`;
-    alert(`Approve ${token} in your wallet to continue.${swapNote} (demo)`);
+    alert(
+      `Approve ${token} to deposit ${fmt(amount)} AUDM.${swapNote}\n` +
+        `→ ${fmt(investAmount)} AUDM swapped to USDT and supplied to AAVE.\n` +
+        `→ ${fmt(bufferAmount)} AUDM held as the claim buffer.\n` +
+        `→ Soulbound coverage NFT minted to your wallet. (demo)`
+    );
   };
 
   return (
@@ -43,32 +52,44 @@ export function Coverage() {
           <div>
             <div className="num">01 · The Pool</div>
             <h2>
-              Pick your tier.
+              Stake AUDM.
               <br />
-              <span className="it">Slide your AUDM in.</span>
+              <span className="it">Earn coverage that grows with tenure.</span>
             </h2>
           </div>
           <div className="lede">
-            Coverage is monthly, non-custodial, and revocable. Withdraw your stake any time you
-            don't have an active claim.
+            One deposit, one soulbound NFT. Your lifetime claim cap unlocks after a 30-day wait
+            and grows logarithmically the longer you stay in the pool.
           </div>
         </div>
 
         <div className="coverage-grid">
           <div className="coverage-left">
             <div className="tier-row">
-              {TIERS.map((t) => (
-                <button
-                  key={t.id}
-                  type="button"
-                  className={`tier${tierId === t.id ? ' active' : ''}`}
-                  onClick={() => onTier(t.id)}
-                >
-                  <div className="tier-name">{t.name}</div>
-                  <div className="tier-price">{t.price} AUDM / mo</div>
-                  <div className="tier-meta">{t.meta}</div>
-                </button>
-              ))}
+              <div className="tier active">
+                <div className="tier-name">80%</div>
+                <div className="tier-price">USDT · AAVE V3</div>
+                <div className="tier-meta">
+                  Auto-swapped AUDM → USDT on Uniswap and supplied to AAVE for yield. Yield stays
+                  in the pool, growing TVL as a solvency cushion.
+                </div>
+              </div>
+              <div className="tier">
+                <div className="tier-name">20%</div>
+                <div className="tier-price">AUDM · BUFFER</div>
+                <div className="tier-meta">
+                  Held in the contract so most claims pay instantly without unwinding AAVE or
+                  paying swap fees on the way out.
+                </div>
+              </div>
+              <div className="tier">
+                <div className="tier-name">SBT</div>
+                <div className="tier-price">EIP-5192 · LOCKED</div>
+                <div className="tier-meta">
+                  Soulbound coverage NFT, minted on deposit. Non-transferable, burnt on withdraw.
+                  Vehicle plate hashed on-chain.
+                </div>
+              </div>
             </div>
 
             <div className="deposit-block">
@@ -102,28 +123,28 @@ export function Coverage() {
               )}
               <div className="breakdown">
                 <div>
-                  <span>Selected Tier</span>
-                  <span>{tier.name}</span>
+                  <span>→ Supplied to AAVE (USDT)</span>
+                  <span className="tnum">{fmt(investAmount)} AUDM</span>
                 </div>
                 <div>
-                  <span>Premium / month</span>
-                  <span className="tnum">{tier.price.toFixed(2)} AUDM</span>
+                  <span>→ Held as AUDM buffer</span>
+                  <span className="tnum">{fmt(bufferAmount)} AUDM</span>
                 </div>
                 <div>
-                  <span>Coverage Cap / month</span>
-                  <span className="tnum">{tier.cap.toFixed(2)} AUDM</span>
+                  <span>Wait period</span>
+                  <span>{POOL.waitDays} days</span>
                 </div>
                 <div>
-                  <span>Pool Share Estimate</span>
+                  <span>Cap formula</span>
+                  <span className="mono">stake · {POOL.k} · ln(1 + months)</span>
+                </div>
+                <div>
+                  <span>Pool share estimate</span>
                   <span className="tnum">{sharePct} %</span>
                 </div>
-                <div>
-                  <span>Lock Period</span>
-                  <span>30 days</span>
-                </div>
                 <div className="total">
-                  <span>You Stake</span>
-                  <span className="tnum">{amount.toFixed(2)} AUDM</span>
+                  <span>Cap at +12 months</span>
+                  <span className="tnum">{fmt(sampleCap12mo)} AUDM</span>
                 </div>
               </div>
               <button
@@ -142,21 +163,21 @@ export function Coverage() {
               <div className="id-card-stamp">{isConnected ? 'ACTIVE' : 'PREVIEW'}</div>
               <div className="id-card-top">
                 <div>
-                  <div className="label">Member ID</div>
+                  <div className="label">Coverage NFT</div>
                   <div className="id-card-name">#1</div>
                 </div>
-                <div className="id-card-tier-badge">{tier.name} · #3,142</div>
+                <div className="id-card-tier-badge">SOULBOUND · EIP-5192</div>
               </div>
               <div className="id-card-meta">
                 <div>
-                  VEHICLE
+                  VEHICLE HASH
                   <br />
                   <strong className="mono">0x4f2e…9b3c</strong>
                 </div>
                 <div>
-                  RENEWS
+                  STAKE
                   <br />
-                  <strong>Jun 09 · Auto</strong>
+                  <strong className="tnum">{fmt(amount)} AUDM</strong>
                 </div>
                 <div>
                   WALLET
@@ -164,36 +185,33 @@ export function Coverage() {
                   <strong className="mono">{shortAddr}</strong>
                 </div>
                 <div>
-                  CLAIMS USED
+                  CAP UNLOCKS
                   <br />
-                  <strong>0 / {tier.cap} AUDM</strong>
+                  <strong>+{POOL.waitDays}d, then grows</strong>
                 </div>
               </div>
             </div>
 
             <div className="pool-stats">
+              {tenureRows.map((row) => (
+                <div className="pool-stat" key={row.label}>
+                  <div className="ticker-label">Cap {row.label}</div>
+                  <div className="ticker-val tnum">
+                    {fmt(row.cap, 0)}
+                    <span className="unit">AUDM</span>
+                  </div>
+                </div>
+              ))}
               <div className="pool-stat">
-                <div className="ticker-label">Your Premium APR</div>
+                <div className="ticker-label">AAVE Yield (live)</div>
                 <div className="ticker-val tnum">
-                  12.4<span className="unit">%</span>
+                  4.1<span className="unit">%</span>
                 </div>
               </div>
               <div className="pool-stat">
-                <div className="ticker-label">Pool Yield (Aave)</div>
+                <div className="ticker-label">Yield Harvested (90d)</div>
                 <div className="ticker-val tnum">
-                  3.8<span className="unit">%</span>
-                </div>
-              </div>
-              <div className="pool-stat">
-                <div className="ticker-label">Days Covered</div>
-                <div className="ticker-val tnum">
-                  87<span className="unit">D</span>
-                </div>
-              </div>
-              <div className="pool-stat">
-                <div className="ticker-label">Next Vote Weight</div>
-                <div className="ticker-val tnum">
-                  1.18<span className="unit">×</span>
+                  18.4<span className="unit">K USDT</span>
                 </div>
               </div>
             </div>

@@ -36,13 +36,14 @@ async function deployFixture() {
   await audm.mint(await router.getAddress(), 1_000_000n * WAD);
   await usdt.mint(await router.getAddress(), 1_000_000n * WAD);
 
-  const aave = await (await ethers.getContractFactory("MockAavePool")).deploy();
+  const aave = await (await ethers.getContractFactory("MockAavePool")).deploy(await usdt.getAddress());
 
   const pool = await (
     await ethers.getContractFactory("FairGoPool")
   ).deploy(
     await audm.getAddress(),
     await usdt.getAddress(),
+    await aave.getAddress(), // mock acts as its own aToken
     await nft.getAddress(),
     await router.getAddress(),
     await aave.getAddress(),
@@ -78,7 +79,7 @@ describe("FairGoPool — deposit splits AUDM 80/20 and parks USDT in AAVE", () =
 
     // 80% leg swapped → supplied to AAVE
     expect(await pool.usdtPrincipal()).to.equal(expectedUsdt);
-    expect(await aave.principalOf(await usdt.getAddress(), await pool.getAddress())).to.equal(expectedUsdt);
+    expect(await aave.principalOf(await pool.getAddress())).to.equal(expectedUsdt);
 
     // 20% AUDM buffer remains in the pool
     const buffer = stake - investAudm;
@@ -134,7 +135,7 @@ describe("FairGoPool — withdrawal", () => {
     expect(await audm.balanceOf(await pool.getAddress())).to.equal(0n);
 
     // usdtPrincipal should have dropped — leftover USDT was re-supplied.
-    const aavePrincipal = await aave.principalOf(await usdt.getAddress(), await pool.getAddress());
+    const aavePrincipal = await aave.principalOf(await pool.getAddress());
     expect(await pool.usdtPrincipal()).to.equal(aavePrincipal);
   });
 
@@ -239,5 +240,52 @@ describe("FairGoPool — claims flow with AAVE-backed payout", () => {
     await pool.connect(alice).submitClaim(1, 50n * WAD, ethers.ZeroHash);
     await expect(pool.connect(oracle).rejectClaim(0)).to.emit(pool, "ClaimRejected").withArgs(0);
     await expect(pool.connect(oracle).approveClaim(0)).to.be.revertedWithCustomError(pool, "ClaimNotPending");
+  });
+});
+
+describe("FairGoPool — AAVE yield harvest", () => {
+  it("returns 0 and emits nothing when there is no yield", async () => {
+    const { treasury, pool } = await depositAlice();
+    expect(await pool.accruedYield()).to.equal(0n);
+    await expect(pool.connect(treasury).harvest(treasury.address)).to.not.emit(pool, "YieldHarvested");
+  });
+
+  it("withdraws only the yield, leaves principal intact", async () => {
+    const { treasury, usdt, aave, pool, expectedUsdt } = await depositAlice();
+
+    // Simulate 5 USDT of accrued AAVE yield — fund the pool with the asset
+    // and credit the supplier's balance.
+    const yieldUsdt = 5n * WAD;
+    await usdt.mint(await aave.getAddress(), yieldUsdt);
+    await aave.accrueYield(await pool.getAddress(), yieldUsdt);
+
+    expect(await pool.accruedYield()).to.equal(yieldUsdt);
+
+    const before = await usdt.balanceOf(treasury.address);
+    await expect(pool.connect(treasury).harvest(treasury.address))
+      .to.emit(pool, "YieldHarvested")
+      .withArgs(treasury.address, yieldUsdt);
+    expect((await usdt.balanceOf(treasury.address)) - before).to.equal(yieldUsdt);
+
+    // Principal accumulator unchanged; remaining aToken balance == principal.
+    expect(await pool.usdtPrincipal()).to.equal(expectedUsdt);
+    expect(await aave.principalOf(await pool.getAddress())).to.equal(expectedUsdt);
+    expect(await pool.accruedYield()).to.equal(0n);
+  });
+
+  it("only TREASURY_ROLE can harvest", async () => {
+    const { alice, pool } = await depositAlice();
+    await expect(pool.connect(alice).harvest(alice.address)).to.be.revertedWithCustomError(
+      pool,
+      "AccessControlUnauthorizedAccount"
+    );
+  });
+
+  it("rejects harvest to zero address", async () => {
+    const { treasury, pool } = await depositAlice();
+    await expect(pool.connect(treasury).harvest(ethers.ZeroAddress)).to.be.revertedWithCustomError(
+      pool,
+      "ZeroAddress"
+    );
   });
 });

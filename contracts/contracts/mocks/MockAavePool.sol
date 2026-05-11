@@ -6,32 +6,47 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 
 import {IAaveV3Pool} from "../interfaces/IAaveV3Pool.sol";
 
-/// @notice Test stand-in for AAVE V3 Pool. Tracks principal per (asset, supplier)
-///         and lets a test mint phantom yield via `accrueYield` (which boosts the
-///         supplier's principal; the test must also fund the pool with that asset).
+/// @notice Test stand-in for AAVE V3 Pool — single-asset, and also acts as its
+///         own "aToken" by exposing `balanceOf(supplier)` (returns principal +
+///         any yield credited via `accrueYield`). Pass this contract's address
+///         as both the pool and the aToken when wiring FairGoPool in tests.
 contract MockAavePool is IAaveV3Pool {
     using SafeERC20 for IERC20;
 
-    mapping(address => mapping(address => uint256)) public principalOf;
+    IERC20 public immutable asset;
+    mapping(address => uint256) public principalOf;
 
+    error WrongAsset();
     error InsufficientPrincipal();
 
-    function supply(address asset, uint256 amount, address onBehalfOf, uint16) external override {
-        IERC20(asset).safeTransferFrom(msg.sender, address(this), amount);
-        principalOf[asset][onBehalfOf] += amount;
+    constructor(IERC20 _asset) {
+        asset = _asset;
     }
 
-    function withdraw(address asset, uint256 amount, address to) external override returns (uint256) {
-        uint256 p = principalOf[asset][msg.sender];
+    function supply(address _asset, uint256 amount, address onBehalfOf, uint16) external override {
+        if (_asset != address(asset)) revert WrongAsset();
+        IERC20(_asset).safeTransferFrom(msg.sender, address(this), amount);
+        principalOf[onBehalfOf] += amount;
+    }
+
+    function withdraw(address _asset, uint256 amount, address to) external override returns (uint256) {
+        if (_asset != address(asset)) revert WrongAsset();
+        uint256 p = principalOf[msg.sender];
         if (p < amount) revert InsufficientPrincipal();
-        principalOf[asset][msg.sender] = p - amount;
-        IERC20(asset).safeTransfer(to, amount);
+        principalOf[msg.sender] = p - amount;
+        IERC20(_asset).safeTransfer(to, amount);
         return amount;
     }
 
-    /// @notice Test helper. Inflates the supplier's principal as if yield accrued.
-    ///         Caller is responsible for funding the pool with the matching asset.
-    function accrueYield(address asset, address supplier, uint256 amount) external {
-        principalOf[asset][supplier] += amount;
+    /// @notice aToken-style view used by FairGoPool to detect accrued yield.
+    function balanceOf(address user) external view returns (uint256) {
+        return principalOf[user];
+    }
+
+    /// @notice Test helper. Inflates the supplier's effective balance as if
+    ///         yield had accrued. Caller must also fund this contract with the
+    ///         underlying asset so withdrawals succeed.
+    function accrueYield(address supplier, uint256 amount) external {
+        principalOf[supplier] += amount;
     }
 }

@@ -24,9 +24,9 @@ export function Hero() {
             <span className="ital">Parking insurance, on-chain.</span>
           </h1>
           <p className="hero-sub">
-            Deposit <b>AUDM</b> or <b>USDC/USDT</b>. Cop a fine? The <b>FAIRGO Treasury</b>{" "}
-            reimburses you on-chain. Verified by holders, paid in seconds. Council can keep the
-            meter running. We've got your back.
+            Deposit <b>AUDM</b> — 80% routes to <b>USDT on AAVE</b> for yield, 20% stays as your
+            instant-claim buffer. You get a <b>soulbound coverage NFT</b> and a lifetime cap that
+            grows with tenure. Cop a fine? Treasury settles in seconds.
           </p>
           <div className="cta-row">
             <a href="#pool" className="btn btn-primary">
@@ -88,9 +88,9 @@ export function Hero() {
           </div>
         </div>
         <div>
-          <div className="ticker-label">Approval Rate</div>
+          <div className="ticker-label">AAVE Yield (live)</div>
           <div className="ticker-val tnum">
-            94.2<span className="unit">%</span>
+            4.1<span className="unit">%</span>
           </div>
         </div>
       </div>

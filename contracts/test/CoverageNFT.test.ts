@@ -89,13 +89,14 @@ describe("CoverageNFT", () => {
     await audm.mint(await router.getAddress(), 1_000_000n * WAD);
     await usdt.mint(await router.getAddress(), 1_000_000n * WAD);
 
-    const aave = await (await ethers.getContractFactory("MockAavePool")).deploy();
+    const aave = await (await ethers.getContractFactory("MockAavePool")).deploy(await usdt.getAddress());
 
     const pool = await (
       await ethers.getContractFactory("FairGoPool")
     ).deploy(
       await audm.getAddress(),
       await usdt.getAddress(),
+      await aave.getAddress(),
       await nft.getAddress(),
       await router.getAddress(),
       await aave.getAddress(),
