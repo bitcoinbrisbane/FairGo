@@ -29,7 +29,7 @@ export function Header() {
       <div className="brand">
         <div className="p-mark">P</div>
         FAIRGO
-        <small>v0.0.1 · base</small>
+        <small>v0.0.1 · mainnet</small>
       </div>
       <nav className="primary">
         <a href="#pool">Pool</a>

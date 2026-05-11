@@ -15,7 +15,7 @@ export function Hero() {
       <div className="hero-grid">
         <div>
           <div className="eyebrow">
-            <span className="dot" /> Pool Open · Live on Base · 4,231 mates covered
+            <span className="dot" /> Pool Open · Live on Ethereum · 4,231 mates covered
           </div>
           <h1 className="hero-title">
             Park <em>Without</em>

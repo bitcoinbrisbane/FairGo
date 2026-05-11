@@ -7,3 +7,5 @@ dist
 .env.local
 coverage
 coverage.json
+deployments/hardhat.json
+deployments/localhost.json

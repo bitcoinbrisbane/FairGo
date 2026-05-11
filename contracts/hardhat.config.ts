@@ -4,12 +4,10 @@ import * as dotenv from "dotenv";
 
 dotenv.config();
 
-const RPC_BASE = process.env.RPC_BASE ?? "https://mainnet.base.org";
-const RPC_BASE_SEPOLIA = process.env.RPC_BASE_SEPOLIA ?? "https://sepolia.base.org";
 const RPC_MAINNET = process.env.RPC_MAINNET ?? "";
+const RPC_SEPOLIA = process.env.RPC_SEPOLIA ?? "https://ethereum-sepolia-rpc.publicnode.com";
 const DEPLOYER_PK = process.env.DEPLOYER_PK;
 const ETHERSCAN_API_KEY = process.env.ETHERSCAN_API_KEY ?? "";
-const BASESCAN_API_KEY = process.env.BASESCAN_API_KEY ?? "";
 
 const accounts = DEPLOYER_PK ? [DEPLOYER_PK] : [];
 
@@ -24,15 +22,13 @@ const config: HardhatUserConfig = {
   },
   networks: {
     hardhat: {},
-    base: { url: RPC_BASE, accounts },
-    baseSepolia: { url: RPC_BASE_SEPOLIA, accounts },
     mainnet: { url: RPC_MAINNET, accounts },
+    sepolia: { url: RPC_SEPOLIA, accounts },
   },
   etherscan: {
     apiKey: {
       mainnet: ETHERSCAN_API_KEY,
-      base: BASESCAN_API_KEY,
-      baseSepolia: BASESCAN_API_KEY,
+      sepolia: ETHERSCAN_API_KEY,
     },
   },
   paths: {
