@@ -52,9 +52,9 @@ export function Coverage() {
           <div>
             <div className="num">01 · The Pool</div>
             <h2>
-              Stake AUDM.
+              One pool. No tiers.
               <br />
-              <span className="it">Earn coverage that grows with tenure.</span>
+              <span className="it">Slide your AUDM in.</span>
             </h2>
           </div>
           <div className="lede">
